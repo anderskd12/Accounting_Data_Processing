@@ -2,7 +2,8 @@
 Example of Accounting Processing using Snowflake 
 
 # Thrive Cash FIFO Pipeline
-<img width="1761" height="851" alt="image" src="https://github.com/user-attachments/assets/18970496-057c-4315-86b9-69d477311df6" />
+<img width="1739" height="788" alt="image" src="https://github.com/user-attachments/assets/a41e4a51-b65b-4771-9b01-70828ce033ca" />
+
 
 # Accounting_Data_Processing  
 **Example of Accounting Processing using Snowflake**
