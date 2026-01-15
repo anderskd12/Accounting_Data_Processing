@@ -120,19 +120,3 @@ The output is analytics-ready and can be consumed directly by:
 - Downstream analytics pipelines
 
 ---
-
-## How to Run This Project
-
-### Prerequisites
-
-- Snowflake account
-- Warehouse with task execution permissions
-- Database and schemas created
-
-### Execution Steps
-
-1. **Create stages and file formats**
-2. **Load raw data**
-   ```sql
-   EXECUTE TASK load_tc_data_csv;
-
