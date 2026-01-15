@@ -1,0 +1,46 @@
+TRANS_ID,TCTYPE,CREATEDAT,EXPIREDAT,CUSTOMERID,ORDERID,AMOUNT,REASON
+12011454,spent,2023-04-05 16:59:39,,16161481,39061923,-16.07,
+11561486,earned,2023-03-08 23:06:16,2023-04-07 23:06:16,16161481,,0.94,Refund
+11561487,earned,2023-03-08 23:06:16,2023-04-07 23:06:16,16161481,,0.9,Refund
+11127421,earned,2023-02-05 13:26:14,2023-04-07 13:26:14,16161481,,14.23,"Delivered, Not Received"
+8900466,expired,2022-07-14 6:01:28,,16161481,,-5,
+8227592,earned,2022-05-14 3:10:07,2022-07-13 3:10:07,16161481,,1,Damaged Item
+8227590,earned,2022-05-14 3:10:06,2022-07-13 3:10:06,16161481,,1,Damaged Item
+8227587,earned,2022-05-14 3:10:05,2022-07-13 3:10:05,16161481,,2,Short Expiry Product
+8227588,earned,2022-05-14 3:10:05,2022-07-13 3:10:05,16161481,,1,Short Expiry Product
+8227471,spent,2022-05-14 2:27:40,,16161481,32114336,-1.5,
+7781403,earned,2022-04-04 18:54:53,2022-06-03 18:54:53,16161481,,1.5,Refund
+11562841,spent,2023-03-09 1:48:27,,23306353,38368189,-20,
+11330728,earned,2023-02-21 21:47:00,2023-03-23 21:47:00,23306353,,20,Short Expiry Product
+11320645,spent,2023-02-21 3:35:17,,23306353,37967954,-110,
+11315932,earned,2023-02-20 18:37:11,2023-03-22 18:12:40,23306353,,30,"Delivered, Not Received"
+11315638,earned,2023-02-20 18:12:40,2023-03-22 18:00:17,23306353,,40,Refer a Friend
+11315530,earned,2023-02-20 18:00:17,2023-04-21 18:00:17,23306353,,40,Damaged Item
+
+The current solution that I built was designed based on the project specifications, however I think additional logic would need to be implimented to make this a useful and accurate solution. The additional field of REEDEMID allows for the oldest 'earned' transaction to be identified, but does not specify a credit amount that should be applied to the 'spent' amount. This would lead to left over open balances both on the spend and earned side of the transactions.
+
+I think a good potential solution would be to impliment a 'ledger apply' table, where spent transactions could be applied to multiple earned transactions with corresponding amounts that were applied for each of the credit applications.  
+
+A simplified table schema could be something like this:
+TS_LEDGER_APPLY
+Spend_TranID	Earned_TranID	Amount_Applied	Date_Applied	Program_User_Stamp
+12011454	11561486	.94		01/14/2025	BatchApplicationTask
+12011454	11561487	.90		01/14/2025	BatchApplicationTask
+12011454	11127421	14.23		01/14/2025	BatchApplicationTask
+
+The TC_Data could then hold the original amounts, but with an additional column that could be called OpenAmount - which could reflect the total amount of credits that have been applied to the transaction.
+
+Assuming that the three earned credits were applied, the final table could reflect that three credits were used toward that transactionid, and there are no more outstanding amounts.
+TRANS_ID,TCTYPE,CREATEDAT,EXPIREDAT,CUSTOMERID,ORDERID,AMOUNT,REASON,OPENAMOUNT
+12011454,spent,2023-04-05 16:59:39,,16161481,39061923,-16.07,0
+11561486,earned,2023-03-08 23:06:16,2023-04-07 23:06:16,16161481,,0.94,Refund,0
+11561487,earned,2023-03-08 23:06:16,2023-04-07 23:06:16,16161481,,0.9,Refund,0
+11127421,earned,2023-02-05 13:26:14,2023-04-07 13:26:14,16161481,,14.23,"Delivered, Not Received",0
+
+There are also many other factors and to-do items around this, but for this example that is what stands out to me as something that would need to be added to make a tenant ledger usable with multiple transactions being applied to one earned transaction.
+
+There would be many ideas that could be implimented around the error handling and pipeline monitoring in this situation. Time constraints and the fact that I ended up using Snowflake tasks instead of dbt/Airflow made these ideas not an option to impliment. However, adding things like alerts, reports with records counts of updated records, reconciliation of amounts applied, and tieouts of totals throughout the raw, stagings, and processed tables and schema would all be helpful for the accounting teams that work with this data.
+
+
+
+
