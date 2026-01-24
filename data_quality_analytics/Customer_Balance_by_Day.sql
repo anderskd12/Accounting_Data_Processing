@@ -1,0 +1,118 @@
+USE database THRIVE_DB
+
+
+-- MANUAL CALCULATION 
+-- CTE FOR EARNED AND SPENT BY CUSTOMER UP TO THE DATE
+-- THEN GROUP AND SUM THEM TO FIND BALANCE AS OF THAT DATE 
+WITH CTE_EARNED AS (
+    SELECT CUSTOMERID, CREATEDAT, SUM(AMOUNT) AS EARNED_BALANCE   FROM THRIVE_DB.PROCESSED.TC_DATA_WITH_REDEMPTIONS
+    WHERE TCTYPE IN ('earned') AND CREATEDAT < '2023-09-30'
+    GROUP BY CUSTOMERID, CREATEDAT
+    ),
+--SELECT * FROM CTE_EARNED ORDER BY 1, 2
+CTE_SPENT AS (
+    SELECT CUSTOMERID, CREATEDAT, SUM(AMOUNT) AS SPENT_BALANCE   FROM THRIVE_DB.PROCESSED.TC_DATA_WITH_REDEMPTIONS
+    WHERE TCTYPE IN ('spent') AND CREATEDAT < '2023-09-30'
+    GROUP BY CUSTOMERID, CREATEDAT
+  )
+SELECT 
+    s.CUSTOMERID, 
+    SUM(EARNED_BALANCE) AS SUM_EARNED, 
+    SUM(SPENT_BALANCE) AS SPENT_BALANCE,
+    SUM(EARNED_BALANCE) + SUM(SPENT_BALANCE) AS BALANCE
+FROM CTE_SPENT AS s JOIN CTE_EARNED AS e
+ON s.CUSTOMERID = e.CUSTOMERID 
+GROUP BY s.CUSTOMERID 
+ORDER BY 1, 2
+
+
+
+
+
+
+
+SELECT CUSTOMERID, REDEEMID, AMOUNT, *   FROM THRIVE_DB.PROCESSED.TC_DATA_WITH_REDEMPTIONS
+WHERE CUSTOMERID IN ('23306353', '16161481') ORDER BY 1, CREATEDAT 
+
+-- BASIC BALANCE USED IN DASHBOARD 
+SELECT * FROM CUSTOMER_TC_BALANCE
+
+-- MORE DETAILED BY DATE - USING TABLE BELOW THAT CALCULATES BALANCE ON A DAILY BASIS -----------
+SELECT
+    customer_id,
+    current_balance
+FROM TC_CUSTOMER_BALANCE
+WHERE transaction_date <= '2023-03-31'
+    and CUSTOMER_ID IN ('23306353', '16161481')
+QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY customer_id
+    ORDER BY transaction_date DESC
+) = 1;
+
+
+
+-- FROM SPECS ---- 
+Write SQL to answer: "What was the Thrive Cash balance for customers 23306353 and 16161481
+on 2023-03-21?"
+
+SELECT * FROM ANALYTICS.TC_CUSTOMER_BALANCE
+WHERE TRANSACTION_DATE = '2023-03-21'
+
+-- CREATING HISTORICAL CUSTOMER BALANCE
+-- MORE DETAILED BY DATE - USING TABLE BELOW THAT CALCULATES BALANCE ON A DAILY BASIS -----------
+CREATE OR REPLACE TABLE ANALYTICS.TC_CUSTOMER_BALANCE AS
+WITH base AS (
+    SELECT
+        CUSTOMERID                             AS customer_id,
+        CAST(CREATEDAT AS DATE)                 AS transaction_date,
+        TCTYPE,
+        AMOUNT
+    FROM THRIVE_DB.PROCESSED.TC_DATA_WITH_REDEMPTIONS
+),
+
+typed AS (
+    SELECT
+        customer_id,
+        transaction_date,
+
+        -- Separate transaction types
+        CASE WHEN TCTYPE = 'earned'  THEN AMOUNT ELSE 0 END AS earned_amt,
+        CASE WHEN TCTYPE = 'spent'   THEN ABS(AMOUNT) ELSE 0 END AS spent_amt,
+        CASE WHEN TCTYPE = 'expired' THEN ABS(AMOUNT) ELSE 0 END AS expired_amt
+    FROM base
+)
+
+SELECT
+    customer_id,
+    transaction_date,
+
+    -- Running totals
+    SUM(earned_amt) OVER (
+        PARTITION BY customer_id
+        ORDER BY transaction_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_earned,
+
+    SUM(spent_amt) OVER (
+        PARTITION BY customer_id
+        ORDER BY transaction_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_spent,
+
+    SUM(expired_amt) OVER (
+        PARTITION BY customer_id
+        ORDER BY transaction_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative_expired,
+
+    -- Balance = Earned - Spent - Expired
+    SUM(earned_amt - spent_amt - expired_amt) OVER (
+        PARTITION BY customer_id
+        ORDER BY transaction_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS current_balance
+
+FROM typed;
+
+
+
